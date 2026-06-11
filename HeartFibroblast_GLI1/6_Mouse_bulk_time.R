@@ -7,14 +7,6 @@ library(biomaRt)
 library(GenomicFeatures)
 source('https://github.com/KaWingLee9/in_house_tools/blob/main/BulkRNASeq/RNANormalization.R')
 
-mouse_ensembl=useMart(biomart="ENSEMBL_MART_ENSEMBL",
-                      dataset="mmusculus_gene_ensembl",version="Ensembl Genes 115")
-
-df=getBM(values=count_mat[,'ensembl_gene_id'],
-      attributes=c("ensembl_gene_id","entrezgene_id","external_gene_name"), # attributes: output ids
-      filters = "ensembl_gene_id", # filters: input id
-      mart=mouse_ensembl)
-
 count_mat=dplyr::left_join( count_mat , df[,c('ensembl_gene_id','external_gene_name')],by='ensembl_gene_id')
 tpm_mat=NormalizeCount(count_mat,species='mouse')
 
