@@ -3,8 +3,8 @@ library(ggplot2)
 library(Seurat)
 library(scRNAtoolVis)
 
-### fibroblast subtype definition using Seurat rpca
-seurat_obj=subset(seurat_obj_all,subset=(cell_type='Fibroblast'))
+### data integration of fibroblast from core dataset
+seurat_obj=subset(seurat_obj_all,ident='Fibroblast') # seurat_obj_all from 1A_HumanAtlas_core.R
 seurat_list=SplitObject(seurat_obj,split.by="batch")
 seurat_list=lapply(X=seurat_list, function(x){
 	x=SCTransform(x,
@@ -36,8 +36,18 @@ seurat_obj=IntegrateData(anchorset=seurat_obj,
 	features.to.integrate=features,
 	dims=1:30)
 
-### label transfer of fibroblast
+seurat_obj=RunPCA(seurat_obj,verbose=FALSE,features=features)
+seurat_obj=RunUMAP(seurat_obj,reduction="pca",dims=1:30,min.dist=0.01,seed.use=202320,n.neighbors=50L)
+seurat_obj=FindNeighbors(seurat_obj,reduction="pca", dims = 1:30)
+seurat_obj=FindClusters(seurat_obj,resolution=c(0.2, 0.5, 1))
+
+seurat_obj=SCTransform(seurat_obj,assay="RNA",new.assay.name="SCT_all",variable.features.n=2000,
+                       vars.to.regress=c('pct_MT', 'nFeature_RNA'),
+                       return.only.var.genes=F,seed.use=202320,verbose=FALSE)
+
+### label transfer of fibroblast from query dataset
 ref_fibro=seurat_obj
+query_fibro=subset(query_sce,idents='Fibroblasts') # query_sce from 1B_HumanData_query.R
 
 transfer_anchor=FindTransferAnchors(reference=ref_fibro,query=query_fibro,dims=1:30,
                                     normalization.method='SCT',

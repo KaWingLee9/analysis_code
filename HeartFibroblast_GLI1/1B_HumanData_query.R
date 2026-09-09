@@ -1,6 +1,13 @@
 library(dplyr)
 library(Seurat)
 
+ref_sce=seurat_obj # from 1A_HumanAtlas_core.R
+query_sce=SCTransform(query_sce,assay="RNA",new.assay.name="SCT",# method='glmGamPoi',
+    variable.features.n=3500,
+    vars.to.regress=c('pct_MT','nFeature_RNA'),
+    return.only.var.genes=TRUE,,
+    verbose=TRUE)
+
 # label transfer using Seurat
 transfer_anchor=FindTransferAnchors(reference=ref_sce,query=query_sce,dims=1:30,
                                     normalization.method='SCT',
