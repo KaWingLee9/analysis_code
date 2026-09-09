@@ -3,6 +3,44 @@ library(ggplot2)
 library(ComplexHeatmap)
 source('https://github.com/KaWingLee9/in_house_tools/blob/main/visulization/custom_fun.R')
 
+### TME distance
+# comparison of Primary-Primary, Primary-Metastasis, Metastasis-Metastasis
+x=dist(cell_type_comp) %>% as.matrix()
+x=x %>% reshape2::melt(varnames=c('sample1','sample2'),value.name='distance')
+x[,'sample1_type']=x[,'sample1'] %>% gsub('[PS][0-9]+','',.) %>% gsub('[0-9]+','',.)
+x[,'sample2_type']=x[,'sample2'] %>% gsub('[PS][0-9]+','',.) %>% gsub('[0-9]+','',.)
+x[,'pair_type']=paste0(x[,'sample1_type'],'-',x[,'sample2_type'])
+x[,'sample1_patient']=x[,'sample1'] %>% gsub('[MT][0-9]+','',.) # %>% gsub('[0-9]+','',.)
+x[,'sample2_patient']=x[,'sample2'] %>% gsub('[MT][0-9]+','',.) # %>% gsub('[0-9]+','',.)
+x=x %>% filter(sample1_patient==sample2_patient,pair_type!='M-T')
+
+x_patient=x %>% group_by(sample1_patient,pair_type) %>% summarize(distance=mean(distance)) %>% data.frame(check.names=FALSE)
+df_1=x_patient %>% filter(pair_type=='T-T') # %>% data.frame(row.names=1,check.names=FALSE)
+colnames(df_1)=c('patient','p1','d1')
+df_2=x_patient %>% filter(pair_type=='T-M') # %>% data.frame(row.names=1,check.names=FALSE)
+colnames(df_2)=c('patient','p2','d2')
+df_3=x_patient %>% filter(pair_type=='M-M') # %>% data.frame(row.names=1,check.names=FALSE)
+colnames(df_3)=c('patient','p3','d3')
+df=df_1 %>% dplyr::full_join(df_2,by='patient') %>% dplyr::full_join(df_3,by='patient')
+df=na.omit(df)
+
+p=ggplot(x_patient,aes(x=forcats::fct_relevel(pair_type,'T-T','T-M','M-M'),y=distance))+
+    geom_boxplot()+
+    geom_point()+
+    theme_bw()+
+    xlab('')+
+    geom_segment(data=df,aes(x=p1,xend=p2,y=d1,yend=d2),color="#DDDDDD",alpha=0.5,linewidth=0.4)+
+    geom_segment(data=df,aes(x=p2,xend=p3,y=d2,yend=d3),color="#DDDDDD",alpha=0.5,linewidth=0.4)+
+    theme_classic()
+
+df=x_patient %>% filter(pair_type %in% c('T-T','T-M')) %>% reshape2::dcast(sample1_patient~pair_type,value.var='distance')
+t.test(x=df[,'T-T'],y=df[,'T-M'],paired=TRUE)
+df=x_patient %>% filter(pair_type %in% c('M-M','T-M')) %>% reshape2::dcast(sample1_patient~pair_type,value.var='distance')
+t.test(x=df[,'M-M'],y=df[,'T-M'],paired=TRUE)
+
+# comparison of TME distance and ITH
+
+
 ### consistency between primary and metastatic tumor ~ dissemination mode of patients
 df=sample_info %>% group_by(patient,sample_type,TME_type_number) %>% summarise(Num=n()) %>% data.frame()
 
@@ -37,21 +75,34 @@ pvals=sapply(unique(df[,'patient']),function(p){
 
     if (nrow(df_patient)>=2){ # with both primary and metastatic samples
 
+        # remove samples with less than 2 samples in primary or metastatic sites
         if ( sum( (df_patient %>% apply(1,sum))==1 ) !=0 ){
             pval=NA
         }
+
+        # composition in primary and metastatic sites are totally sme
         else if (ncol(df_patient)==1){
             pval=1
-        } 
+        }
+
+        # TME subtypes totally different
+        else if (sum(apply(df_patient,2,function(x) {0 %in% x}))==ncol(df_patient)){
+            pval=0
+        }
+
         else {
             test_result=fisher.test(df_patient,alternative='two.sided')
             # test_result=chisq.test(df_patient)
             pval=test_result[['p.value']]
         }
+        
+
     } else {
         pval=NA
     }
+    
     return(pval)
+
 })
 
 clinical_info=read.csv('./clinical_data.csv',row.names=1,check.names=FALSE)
@@ -70,7 +121,7 @@ a=m %>% filter(TimeDivergence=='EarlyDivergence',sig=='0') %>% nrow()
 b=m %>% filter(TimeDivergence=='EarlyDivergence',sig=='1') %>% nrow()
 c=m %>% filter(TimeDivergence=='LateDivergence',sig=='0') %>% nrow()
 d=m %>% filter(TimeDivergence=='LateDivergence',sig=='1') %>% nrow()
-fisher.test( matrix(c(a,b,c,d),nrow=2) )
+fisher.test( matrix(c(a,b,c,d),nrow=2),alternative='less' )
 
 # ~ColonalType
 clinical_info=clinical_info %>% group_by(ColonalType) %>% mutate(Rate=1/n())
@@ -83,7 +134,7 @@ a=m %>% filter(ColonalType=='monoclonal',sig=='0') %>% nrow()
 b=m %>% filter(ColonalType=='monoclonal',sig=='1') %>% nrow()
 c=m %>% filter(ColonalType=='polyclonal',sig=='0') %>% nrow()
 d=m %>% filter(ColonalType=='polyclonal',sig=='1') %>% nrow()
-fisher.test( matrix(c(a,b,c,d),nrow=2) )
+fisher.test( matrix(c(a,b,c,d),nrow=2),alternative='greater' )
 
 # ~PhyleticType
 clinical_info=clinical_info %>% group_by(PhyleticType) %>% mutate(Rate=1/n())
@@ -96,7 +147,7 @@ a=m %>% filter(PhyleticType=='monophyletic',sig=='0') %>% nrow()
 b=m %>% filter(PhyleticType=='monophyletic',sig=='1') %>% nrow()
 c=m %>% filter(PhyleticType=='polyphyletic',sig=='0') %>% nrow()
 d=m %>% filter(PhyleticType=='polyphyletic',sig=='1') %>% nrow()
-fisher.test( matrix(c(a,b,c,d),nrow=2) )
+fisher.test( matrix(c(a,b,c,d),nrow=2),alternative='less' )
 
 # Immune subtype composition between primary and metastatic tumor
 df=sample_info %>% group_by(patient,sample_type) %>% mutate(Rate=1/n()) %>% data.frame()

@@ -3,9 +3,55 @@ library(ggplot2)
 library(Seurat)
 library(scRNAtoolVis)
 
-### fibroblast subtype definition
-seurat_obj=subset(seurat_obj_all)
+### fibroblast subtype definition using Seurat rpca
+seurat_obj=subset(seurat_obj_all,subset=(cell_type='Fibroblast'))
+seurat_list=SplitObject(seurat_obj,split.by="batch")
+seurat_list=lapply(X=seurat_list, function(x){
+	x=SCTransform(x,
+		assay = "RNA",
+		new.assay.name = "SCT",
+		variable.features.n = 3500,
+        vars.to.regress = c('pct_MT', 'nFeature_RNA'),
+		return.only.var.genes = F,
+		seed.use = 202320,
+		verbose = FALSE
+	)
+})
 
+features=SelectIntegrationFeatures(
+	object.list=seurat_list,
+	nfeatures=2000)
+seurat_list=PrepSCTIntegration(
+	object.list=seurat_list,
+	anchor.features=features)
+seurat_list=lapply(X=seurat_list,FUN=RunPCA,features=features)
+seurat_obj=FindIntegrationAnchors(object.list=seurat_obj,
+	normalization.method='SCT',
+	anchor.features=features, dims=1:30,
+	reduction="rpca", 
+    k.anchor=10
+)
+seurat_obj=IntegrateData(anchorset=seurat_obj,
+	normalization.method='SCT',
+	features.to.integrate=features,
+	dims=1:30)
+
+### label transfer of fibroblast
+ref_fibro=seurat_obj
+
+transfer_anchor=FindTransferAnchors(reference=ref_fibro,query=query_fibro,dims=1:30,
+                                    normalization.method='SCT',
+                                    reference.reduction='pca')
+query_prediction=TransferData(anchorset=transfer_anchor,
+                              refdata=Idents(ref_fibro),
+                              dims=1:30)
+
+query_fibro=IntegrateEmbeddings(anchorset=transfer_anchor,reference=ref_fibro,
+                              query=query_fibro,new.reduction.name="ref.pca")
+                              
+query_fibro=ProjectUMAP(reference=ref_fibro,query=query_fibro,
+                      reference.reduction="pca",query.reduction="ref.pca",
+                      reduction.model="umap")
 
 ### gene markers of fibroblast
 future::plan("multicore",workers=10) 
@@ -19,7 +65,7 @@ fib_feature=c('ACSM3','SCN7A','COL15A1',
               'NAV3','KAZN','PLA2G2A','FOS','JUNB',
               'APOE','CCL2','IFIT3','IFIT1','ISG15')
 
-cell_order=c('qFibro','PCOLCE3+ Fibro','ELN+ Myofibroblast',
+cell_order=c('qFibro','SCARA5+ Fibro','Myofibroblast',
              'POSTN+ Fibro','NAV3+ Fibro','PLA2G2A+ Fibro','APOE+ Fibro',
              'CCL2+ Fibro','IFN Fibro') %>% rev()
 p=DotPlot(seurat_obj,features=fib_feature,col.min=0)+
@@ -49,12 +95,17 @@ DefaultAssay(seurat_obj)='regulon'
 regulon.markers=FindAllMarkers(seurat_obj)
 top_regulon=regulon.markers %>% filter(avg_log2FC>=0) %>% group_by(cluster) %>% top_n(n=5,wt=avg_log2FC) %>% .[,'gene',drop=TRUE] %>% unique()
 
-cell_order=c('qFibro','PCOLCE3+ Fibro','PLA2G2A+ Fibro','NAV3+ Fibro','APOE+ Fibro','CCL2+ Fibro',
-             'IFN Fibro','POSTN+ Fibro','ELN+ Myofibroblast')
-regulon_order=c('GLI1(+)','SOX13(+)','MAX(+)','MNT(+)','KLF4(+)','TCF12(+)',
-                'STAT6(+)','ELK4(+)','NR1H3(+)','STAT2(+)','IRF9(+)','IRF1(+)',
-                'RFX1(+)','SNAI1(+)','SMAD3(+)','TBP(+)',
-                'REL(+)','SRF(+)','FOXK1(+)','HSF1(+)') # from top_regulon
+cell_order=c('qFibro','SCARA5+ Fibro','PLA2G2A+ Fibro','NAV3+ Fibro','APOE+ Fibro','CCL2+ Fibro',
+             'IFN Fibro','POSTN+ Fibro','Myofibroblast')
+regulon_order=c("LHX2(+)",   "YBX1(+)",   "EBF1(+)",   "ETV1(+)",
+"GLI1(+)",   "ETV4(+)", "KLF4(+)",   "RARG(+)",
+"STAT6(+)",  "ELK4(+)",   "ELK1(+)",   "SMAD1(+)",  "FOXL2(+)",
+"NANOG(+)",  "MAFB(+)",   "HOXB13(+)", "BCL6(+)", "NCOA2(+)",
+"NR1H3(+)",  "RARB(+)",   "ATF6(+)",
+"STAT2(+)",  "IRF9(+)", "IRF1(+)",   "IRF2(+)",   "STAT4(+)",
+"REL(+)","E2F3(+)",
+"SNAI1(+)", "TBP(+)",    "RFX1(+)",   "SMAD3(+)",  "ETV6(+)",
+"SRF(+)",    "RXRG(+)",   "FOXK1(+)") # from top_regulon
 
 p=averageHeatmap(seurat_obj,assays='regulon',
                markerGene=regulon_order,

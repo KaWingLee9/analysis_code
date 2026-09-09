@@ -22,6 +22,7 @@ p=p+theme(axis.text.x=element_text(angle=45,hjust=1))
 # similarity of human and mouse fibroblast
 query_sce=seurat_obj
 
+# homologous genen name transform
 annotation_ref=read.csv('gene_matches_1v1_mouse2human.csv',row.names=1,check.names=FALSE) # gene matching from: https://xingyanliu.github.io/CAME/tutorials.html
 exp_mat=as.matrix(query_sce@assays$RNA@counts)
 ind=intersect(rownames(exp_mat),rownames(annotation_ref))
