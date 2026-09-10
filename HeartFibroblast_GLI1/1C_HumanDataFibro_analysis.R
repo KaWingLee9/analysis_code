@@ -39,7 +39,7 @@ seurat_obj=IntegrateData(anchorset=seurat_obj,
 seurat_obj=RunPCA(seurat_obj,verbose=FALSE,features=features)
 seurat_obj=RunUMAP(seurat_obj,reduction="pca",dims=1:30,min.dist=0.01,seed.use=202320,n.neighbors=50L)
 seurat_obj=FindNeighbors(seurat_obj,reduction="pca", dims = 1:30)
-seurat_obj=FindClusters(seurat_obj,resolution=c(0.2, 0.5, 1))
+seurat_obj=FindClusters(seurat_obj,resolution=1.2)
 
 seurat_obj=SCTransform(seurat_obj,assay="RNA",new.assay.name="SCT_all",variable.features.n=2000,
                        vars.to.regress=c('pct_MT', 'nFeature_RNA'),
