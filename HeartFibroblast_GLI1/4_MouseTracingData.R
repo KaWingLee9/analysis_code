@@ -6,6 +6,8 @@ library(ggplotify)
 library(Seurat)
 library(monocle)
 
+source('https://github.com/KaWingLee9/analysis_code/blob/main/HeartFibroblast_GLI1/monocle2_function.R')
+
 exp_mat=as(as.matrix(seurat_obj@assays$RNA@counts), 'sparseMatrix')
 pd=new('AnnotatedDataFrame',data=seurat_obj@meta.data)
 fData=data.frame(gene_short_name=row.names(exp_mat),row.names=row.names(exp_mat))
