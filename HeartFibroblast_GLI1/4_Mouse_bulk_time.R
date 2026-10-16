@@ -58,6 +58,37 @@ ht=Heatmap(df,
            left_annotation=rowAnnotation(gcluster=genes_cluster[rownames(df),]))
 
 ### temporally related gens ~ trajectory in 4_MouseTracingData.R
+
+seurat_obj=irGSEA.score(object=seurat_obj,assay="SCT",# new.assay='AUCell',
+                        slot="data",
+                        custom=TRUE,geneset=gene_ls, # list of gene set, with names of each element
+                        # msigdb=T,species="Homo sapiens",geneid="symbol",category=category,subcategory=subcategory # automatically use gene list in MSigDB
+                        method="AUCell", # optional: "AUCell", "UCell", "singscore", "ssgsea"
+                        aucell.MaxRank=ceiling(0.05*nrow(seurat_obj)),# ucell.MaxRank=NULL, # parameter for AUCell and UCell, default: 5% of highly expressed genes
+                        # kcdf='Gaussian', parameter for ssGSEA
+                        seeds=123,ncores=20 # basic operation for computer
+                        # min.cells=3,min.feature=0 # data filtering, ignored
+                        )
+
+DefaultAssay(seurat_obj)='AUCell'
+
+gs_df=seurat_obj@assays$AUCell@scale.data %>% as.matrix() %>% t()
+gs_df[gs_df<=0]=0
+gs_df=gs_df[ intersect(rownames(cds_dim),rownames(gs_df)) ,]
+gs_df=cbind(cds_dim,gs_df)
+
+plot_ls=lapply(c('geneset1','geneset2','geneset3','geneset4'),function(x){
+    
+    p=ggplot(gs_df,aes_string(x='V1',y='V2',color=x))+
+        geom_point(size=0.01)+
+        theme_classic()+
+        scale_color_gradient(low='grey',high='red')
+    
+    return(p)
+})
+p=wrap_plots(plot_ls)
+
+# heatmap
 df_h=p1[[1]] %>% reshape2::dcast(gene~Pseudotime,value.var='expression') %>% data.frame(row.names=1,check.names=FALSE) # %>% as.matrix()
 p=Heatmap(df_h,cluster_rows=FALSE,cluster_columns=FALSE,show_column_names=FALSE,show_row_names=FALSE,
         row_split=df[rownames(df_h),1] ,name='Scaled\nexpression')
