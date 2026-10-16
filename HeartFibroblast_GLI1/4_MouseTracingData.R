@@ -36,3 +36,19 @@ cds=reduceDimension(cds,max_components=2,method='DDRTree')
 cds=orderCells(cds)
 
 pData(cds)[,'cell_type_final']=Idents(seurat_obj)[rownames(pData(cds))]
+
+p=plot_cell_trajectory(cds,color_by='Pseudotime')+
+    scale_color_gradientn(colors=paletteer::paletteer_c("grDevices::Inferno",30))
+
+# pseudotime ~ cell type, treatment time, gene expression
+options(repr.plot.height=5,repr.plot.width=8)
+p1=plot_cell_type(cds,grouping_col='cluster_annotated',
+               order=rev(c('qFibro','Fos/Jun Fibro','Pcolce2+ Fibro','Apoe+ Fibro','Postn+ Fibro',
+                       'Ccl2+ Fibro','Myofibroblast')))+
+    scale_fill_manual(values=cell_color)
+p2=plot_cell_type(cds,grouping_col='batch',order=rev(c('MID0','MID3','MID7','MID14')))
+
+p3=plot_gene_heatmap(cds,gene_names=c('Scara5','Pi16','Gli1','Thbs4',
+                                      'Postn','Col1a1','Fn1','Acta2','Cthrc1'))
+
+p=p2 %>% insert_bottom(p1) %>% insert_bottom(p3)

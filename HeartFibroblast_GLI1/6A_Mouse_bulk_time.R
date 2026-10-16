@@ -57,6 +57,11 @@ ht=Heatmap(df,
            row_split=genes_cluster[rownames(df),],
            left_annotation=rowAnnotation(gcluster=genes_cluster[rownames(df),]))
 
+### temporally related gens ~ trajectory in 4_MouseTracingData.R
+df_h=p1[[1]] %>% reshape2::dcast(gene~Pseudotime,value.var='expression') %>% data.frame(row.names=1,check.names=FALSE) # %>% as.matrix()
+p=Heatmap(df_h,cluster_rows=FALSE,cluster_columns=FALSE,show_column_names=FALSE,show_row_names=FALSE,
+        row_split=df[rownames(df_h),1] ,name='Scaled\nexpression')
+
 ### transcription factor analysis with decoupleR
 library(decoupleR)
 
